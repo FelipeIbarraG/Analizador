@@ -167,7 +167,16 @@ public class View extends JFrame implements ActionListener{
         scrollLexemas.setBorder(BorderFactory.createTitledBorder("Zona de Lexemas y Componentes Léxicos"));
 
         // Tabla de símbolos
-        String[] columnasSimbolos = {"Identificador", "Tipo", "Valor", "Posición"};
+        
+        // Identificador: nombre
+        // Tipo: int, boolean, int[], etc.
+        // Clase: clase contenedora
+        // Valor: inicialización, si hay
+        // Visibilidad: public, private, protected
+        // Posición: línea/columna del Token
+        // Rol: variable, clase, método, etc.
+
+        String[] columnasSimbolos = {"Identificador", "Tipo", "Clase", "Valor", "Visibilidad", "Posición", "Rol"};
         DefaultTableModel modeloSimbolos = new DefaultTableModel(columnasSimbolos, 0);
         tablaSimbolos = new JTable(modeloSimbolos);
         JScrollPane scrollSimbolos = new JScrollPane(tablaSimbolos);

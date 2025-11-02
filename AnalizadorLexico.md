@@ -8,7 +8,7 @@ Este programa implementa un **analizador léxico** (scanner) que simula el compo
 
 - **Tokenización completa**: Identifica y clasifica todos los componentes léxicos del código fuente
 - **Detección de errores**: Detecta y reporta errores léxicos con ubicación exacta (línea y columna)
-- **Tabla de símbolos**: Construye y visualiza una tabla de símbolos con identificadores, tipos, valores y posiciones
+- **Tabla de símbolos**: Construye y visualiza una tabla de símbolos con identificadores, tipos, clases, valores, visibilidad, posiciones y roles
 - **Interfaz gráfica intuitiva**: Interfaz desarrollada con Java Swing que incluye:
   - Editor de código con resaltado
   - Visualización de tokens en tabla interactiva
@@ -20,7 +20,7 @@ Este programa implementa un **analizador léxico** (scanner) que simula el compo
 ## 🏗️ Estructura del Proyecto
 
 ```
-AnalizadorLexico/
+Analizador/
 ├── src/
 │   ├── App.java                    # Punto de entrada de la aplicación
 │   ├── UI/
@@ -118,7 +118,8 @@ public class Ejemplo {
 ## 📌 Notas
 
 - El analizador actualmente procesa código Java o MiniJava
-- La tabla de símbolos se completa principalmente con información del análisis léxico básico
+- La tabla de símbolos se estructura con columnas: Identificador, Tipo, Clase, Valor, Visibilidad, Posición y Rol
+- La tabla de símbolos se completa principalmente con información del análisis léxico básico y será enriquecida durante el análisis sintáctico
 - Errores léxicos se detectan cuando un carácter o secuencia no coincide con ningún patrón reconocido
 
 ---
