@@ -6,3 +6,4 @@ public class App {
         ventana.setVisible(true);
     }
 }
+

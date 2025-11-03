@@ -110,6 +110,7 @@ El analizador sintáctico implementa la siguiente gramática:
 ## 📝 Ejemplo de Uso
 
 ### Código Válido
+El programa debe de ser capaz de analizar el codigo siguiente sin ningun problema.
 
 ```java
 public class Ejemplo {

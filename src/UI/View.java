@@ -26,6 +26,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 
 import Util.AnalizadorLexico;
+import Util.AnalizadorSintactico;
 import Util.Token;
 
 public class View extends JFrame implements ActionListener{
@@ -57,6 +58,7 @@ public class View extends JFrame implements ActionListener{
     // CONTENIDO SUR (BOTON)
     private JPanel panelBoton;
     private JButton btnAnalisisLexico;
+    private JButton btnAnalisisSintactico;
 
     public View(String title) {
         super(title);
@@ -169,7 +171,7 @@ public class View extends JFrame implements ActionListener{
         // Tabla de símbolos
         
         // Identificador: nombre
-        // Tipo: int, boolean, int[], etc.
+        // Tipo: int, boolean, String, etc.
         // Clase: clase contenedora
         // Valor: inicialización, si hay
         // Visibilidad: public, private, protected
@@ -190,9 +192,15 @@ public class View extends JFrame implements ActionListener{
 
     private void ContenidoSur() {
         btnAnalisisLexico = new JButton("Análisis Léxico");
+        btnAnalisisSintactico = new JButton("Análisis Sintáctico");
+        
         panelBoton = new JPanel();
         panelBoton.add(btnAnalisisLexico);
+         panelBoton.add(btnAnalisisSintactico);
+
         btnAnalisisLexico.addActionListener(this);
+        btnAnalisisSintactico.addActionListener(this);
+
         panelPrincipal.add(panelBoton, BorderLayout.SOUTH);
     }
 
@@ -312,31 +320,61 @@ public class View extends JFrame implements ActionListener{
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if(e.getSource() == btnAnalisisLexico){
+        if (e.getSource() == btnAnalisisLexico) {
+            // 🔹 Crear y ejecutar el analizador léxico
             AnalizadorLexico analizador = new AnalizadorLexico();
             analizador.analizar(codigoArea.getText());
 
-            // ------------- 1. TABLA DE LEXEMAS Y ERRORES ------------------
+            // ---------- LIMPIAR ZONAS ----------
             erroresArea.setText("");
-
             DefaultTableModel modeloLexemas = (DefaultTableModel) tablaLexemas.getModel();
             modeloLexemas.setRowCount(0);
 
-            // Mostrar tokens en la tabla
+            // ---------- MOSTRAR TOKENS ----------
             for (Token t : analizador.getTokens()) {
                 modeloLexemas.addRow(new Object[]{t.getLexema(), t.getTipo()});
             }
 
-            // ------------- 2. TABLA DE SIMBOLOS ------------------
-            // Para análisis léxico, la tabla de símbolos se llena solo con análisis sintáctico
+            // ---------- MOSTRAR ERRORES ----------
+            if (analizador.getErrores().isEmpty()) {
+                erroresArea.setText("✔ Análisis léxico completado sin errores.\n");
+            } else {
+                for (String err : analizador.getErrores()) {
+                    erroresArea.append(err + "\n");
+                }
+            }
+        }
+
+        if (e.getActionCommand().equals("Análisis Sintáctico")) {
+            //Ejecutar primero el análisis léxico
+            AnalizadorLexico analizadorLexico = new AnalizadorLexico();
+            analizadorLexico.analizar(codigoArea.getText());
+
+            // ---------- LIMPIAR ZONAS ----------
+            erroresArea.setText("");
             DefaultTableModel modeloSimbolos = (DefaultTableModel) tablaSimbolos.getModel();
             modeloSimbolos.setRowCount(0);
 
-            // Mostrar errores 
-            for (String err : analizador.getErrores()) {
-                erroresArea.append(err + "\n");
+            // ---------- VALIDAR TOKENS ----------
+            if (analizadorLexico.getTokens().isEmpty()) {
+                erroresArea.setText("No se encontraron tokens. Asegúrate de ejecutar el análisis léxico correctamente.\n");
+                return;
+            }
+
+            // ---------- EJECUTAR ANÁLISIS SINTÁCTICO ----------
+            AnalizadorSintactico analizadorSintactico = new AnalizadorSintactico();
+            analizadorSintactico.analizar(analizadorLexico.getTokens());
+
+            // ---------- MOSTRAR ERRORES ----------
+            if (analizadorSintactico.getErrores().isEmpty()) {
+                erroresArea.setText("Análisis sintáctico completado sin errores.\n");
+            } else {
+                for (String err : analizadorSintactico.getErrores()) {
+                    erroresArea.append(err + "\n");
+                }
             }
         }
+
 
         if(e.getSource() == JMIOpen){ OpenFile(); }
 
