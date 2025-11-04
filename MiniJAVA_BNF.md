@@ -2,7 +2,7 @@ BNF para MiniJava
 NON-TERMINALS
 
 Goal	::=	MainClass ( ClassDeclaration )* <EOF>
-MainClass	::=	( "public" )? "class" Identifier "{" "public" "static" "void" "main" "(" "String" "[" "]" Identifier ")" "{" ( VarDeclaration | Statement )* "}" "}"
+MainClass	::=	( "public" )? "class" Identifier ("extends" Identifier)? "{" "public" "static" "void" "main" "(" "String" "[" "]" Identifier ")" "{" ( VarDeclaration | Statement )* "}" "}"
 ClassDeclaration	::=	"class" Identifier ( "extends" Identifier )? "{" ( VarDeclaration )* ( MethodDeclaration )* "}"
 VarDeclaration	::=	Type Identifier ";"
 MethodDeclaration	::=	"public" Type Identifier "(" ( Type Identifier ( "," Type Identifier )* )? ")" "{" ( VarDeclaration )* ( Statement )* "return" Expression ";" "}"

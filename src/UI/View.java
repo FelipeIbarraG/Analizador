@@ -337,7 +337,7 @@ public class View extends JFrame implements ActionListener{
 
             // ---------- MOSTRAR ERRORES ----------
             if (analizador.getErrores().isEmpty()) {
-                erroresArea.setText("✔ Análisis léxico completado sin errores.\n");
+                erroresArea.setText("Análisis léxico completado sin errores.\n");
             } else {
                 for (String err : analizador.getErrores()) {
                     erroresArea.append(err + "\n");
