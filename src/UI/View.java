@@ -27,6 +27,7 @@ import javax.swing.table.DefaultTableModel;
 
 import Util.AnalizadorLexico;
 import Util.AnalizadorSintactico;
+import Util.Simbolo;
 import Util.Token;
 
 public class View extends JFrame implements ActionListener{
@@ -350,6 +351,8 @@ public class View extends JFrame implements ActionListener{
             AnalizadorLexico analizadorLexico = new AnalizadorLexico();
             analizadorLexico.analizar(codigoArea.getText());
 
+            
+
             // ---------- LIMPIAR ZONAS ----------
             erroresArea.setText("");
             DefaultTableModel modeloSimbolos = (DefaultTableModel) tablaSimbolos.getModel();
@@ -364,6 +367,14 @@ public class View extends JFrame implements ActionListener{
             // ---------- EJECUTAR ANÁLISIS SINTÁCTICO ----------
             AnalizadorSintactico analizadorSintactico = new AnalizadorSintactico();
             analizadorSintactico.analizar(analizadorLexico.getTokens());
+            
+            for (Simbolo s : analizadorSintactico.getTablaSimbolos()) {
+                modeloSimbolos.addRow(new Object[]{
+                    s.getNombre(), s.getTipo(), s.getClase(), s.getValor(),
+                    s.getVisibilidad(), s.getPosicion(), s.getRol()
+                });
+            }
+
 
             // ---------- MOSTRAR ERRORES ----------
             if (analizadorSintactico.getErrores().isEmpty()) {

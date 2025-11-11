@@ -24,7 +24,7 @@ public class AnalizadorLexico {
         "interface","long","native","new","package","private","protected","public",
         "return","short","static","strictfp","super","switch","synchronized","this",
         "throw","throws","transient","try","void","volatile","while","true","false","null",
-        "System", "out", "print"
+        "System", "out", "print","return"
     ));
 
     // Separadores 

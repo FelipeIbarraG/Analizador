@@ -4,16 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Clase base para el Analizador Sintáctico de MiniJava.
- * Implementa un parser descendente recursivo basado en la gramática BNF.
- * 
+ * Analizador Sintáctico de MiniJava.
+ * Parser descendente recursivo que usa los tokens generados por AnalizadorLexico.
  */
-
 public class AnalizadorSintactico {
 
     private List<Token> tokens;
     private int indiceActual;
     private List<String> errores;
+    private List<Simbolo> tablaSimbolos = new ArrayList<>();
+
+    private String claseActual = "";
+    private String visibilidadActual = "public";
 
     private static final int LIMITE_ERRORES = 5;
 
@@ -23,16 +25,16 @@ public class AnalizadorSintactico {
         this.errores = new ArrayList<>();
     }
 
-    /** Método principal que inicia el análisis sintáctico */
+    /** Inicia el análisis sintáctico con una lista de tokens */
     public void analizar(List<Token> tokensEntrada) {
         this.tokens = tokensEntrada;
         this.indiceActual = 0;
         this.errores.clear();
+        this.tablaSimbolos.clear(); // limpiar tabla previa
 
-        // Inicio
         goal();
 
-        // Fin 
+        // Si quedan tokens sin consumir
         if (indiceActual < tokens.size()) {
             Token t = tokens.get(indiceActual);
             errores.add(String.format(
@@ -48,140 +50,105 @@ public class AnalizadorSintactico {
             return;
         }
 
-        // Siempre debe haber al menos una clase
         mainClass();
 
-        // Cero o más ClassDeclaration
         while (verificarLexema("class") || (verificarLexema("public") && siguienteEs("class"))) {
             classDeclaration();
         }
     }
 
-
     private void mainClass() {
-        // Estructura esperada:
-        // ( "public" )? "class" Identifier "{" 
-        // "public" "static" "void" "main" "(" "String" "[" "]" Identifier ")" 
-        // "{" ( VarDeclaration | Statement )* "}" "}"
+        if (verificarLexema("public")) match("public");
+        if (!match("class")) return;
 
-        // ---------- 1. ( "public" )? ----------
-        if (verificarLexema("public")) {
-            match("public");
-        }
-
-        // ---------- 2. "class" ----------
-        if (!match("class")) {
-            // No hay punto en continuar si no hay clase principal
-            return;
-        }
-
-        // ---------- 3. Identifier ----------
         if (!verificarTipo("Identificador")) {
-            registrarError("Se esperaba un identificador (nombre de clase) después de 'class'.");
+            registrarError("Se esperaba un identificador después de 'class'.");
             return;
-        } else {
-            avanzar(); // consumimos el nombre de la clase
         }
 
-        // ---------- 4. "{" ----------
+        Token t = tokens.get(indiceActual);
+        claseActual = t.getLexema();
+        tablaSimbolos.add(new Simbolo(claseActual, "-", "-", "-", "public",
+            "Línea " + t.getLinea() + ", Columna " + t.getColumna(), "Clase"));
+        avanzar();
+
         match("{");
 
-        // ---------- 5. "public static void main ( String [ ] id )" ----------
-        if (!match("public")) return;
-        if (!match("static")) return;
-        if (!match("void")) return;
-        if (!match("main")) return;
+        match("public"); match("static"); match("void"); match("main");
+        match("("); match("String"); match("["); match("]");
 
-        match("(");
-        match("String");
-        match("[");
-        match("]");
-        
-        if (!verificarTipo("Identificador")) { // el args
+        if (!verificarTipo("Identificador")) {
             registrarError("Se esperaba un identificador como parámetro de 'main'.");
-            return;
-        } else {
-            avanzar();
-        }
+        } else avanzar();
 
-        match(")");
+        match(")"); match("{");
 
-        // ---------- 6. "{" ( VarDeclaration | Statement )* "}" ----------
-        if (!match("{")) return;
-
-        // cero o más VarDeclaration o Statement (Kleene)
         while (true) {
-            // Fin del bloque
             if (verificarLexema("}")) break;
 
-            // Si empieza con tipo es una declaración de variable
-            if (esTipo()) {
+            if (esTipo() && siguienteEsIdentificador() && siguienteDespuesDeIdentificadorEsPuntoYComa()) {
                 varDeclaration();
                 continue;
             }
 
-            // Si empieza con palabra reservada de sentencia if, while, System, etc.
+
             if (esInicioDeSentencia()) {
                 statement();
                 continue;
             }
 
-            // Si no coincide con nada conocido, reporta error y avanza para evitar bucle infinito
             registrarError("Token inesperado dentro del cuerpo del main.");
             avanzar();
         }
 
-        match("}");
-
-        // ---------- 7. Cierre de clase "}" ----------
-        match("}");
-
+        match("}"); match("}");
     }
 
+    // Sobrecarga para compatibilidad con llamadas sin parametros
     private void varDeclaration() {
-        // VarDeclaration ::= Type Identifier ";"
+        varDeclaration(claseActual, visibilidadActual);
+    }
+
+    private void varDeclaration(String claseContenedora, String visibilidad) {
         if (!esTipo()) {
             registrarError("Se esperaba un tipo de dato (int, boolean, String o clase definida).");
             return;
         }
-        avanzar(); // consume el tipo
+
+        String tipo = tokens.get(indiceActual).getLexema();
+        avanzar();
+
         if (!verificarTipo("Identificador")) {
             registrarError("Se esperaba un identificador después del tipo de dato.");
             return;
         }
+
+        Token tokenVar = tokens.get(indiceActual);
+        String nombre = tokenVar.getLexema();
         avanzar();
         match(";");
+
+        tablaSimbolos.add(new Simbolo(nombre, tipo, claseContenedora, "-", visibilidad,
+            "Línea " + tokenVar.getLinea() + ", Columna " + tokenVar.getColumna(), "Variable"));
     }
 
+    
     private void statement() {
         if (verificarLexema("{")) {
             match("{");
-            while (esInicioDeSentencia()) {
-                statement();
-            }
+            while (esInicioDeSentencia()) statement();
             match("}");
             return;
         }
 
         if (verificarLexema("if")) {
-            match("if");
-            match("(");
-            expression();
-            match(")");
-            statement();
-            if (verificarLexema("else")) {
-                match("else");
-                statement();
-            }
+            match("if"); match("("); expression(); match(")"); statement();
+            if (verificarLexema("else")) { match("else"); statement(); }
             return;
         }
 
         if (verificarLexema("while")) {
-            match("while");
-            match("(");
-            expression();
-            match(")");
-            statement();
+            match("while"); match("("); expression(); match(")"); statement();
             return;
         }
 
@@ -191,161 +158,204 @@ public class AnalizadorSintactico {
             return;
         }
 
-        // Asignaciones
-        if (verificarTipo("Identificador")) {
-            avanzar();
-            if (verificarLexema("=")) {
-                match("=");
+        if (verificarLexema("return")) {
+            match("return");
+
+            // Soporta tanto "return;" como "return <expr>;"
+            if (!verificarLexema(";")) {
                 expression();
-                match(";");
+            }
+            match(";");
+            return;
+        }
+
+        // Asignaciones o llamadas
+        if (verificarTipo("Identificador")) {
+            avanzar(); // identificador
+
+            if (verificarLexema("=")) {
+                match("="); expression(); match(";");
             } else if (verificarLexema("[")) {
                 match("["); expression(); match("]"); match("="); expression(); match(";");
+            } else if (verificarLexema("(")) {
+                match("(");
+                if (!verificarLexema(")")) {
+                    while (true) {
+                        expression();
+                        if (verificarLexema(",")) match(",");
+                        else break;
+                    }
+                }
+                match(")");
+                match(";");
             } else {
-                registrarError("Se esperaba '=' o '[' después del identificador.");
+                registrarError("Se esperaba '=' o '[' o '(' después del identificador.");
             }
             return;
         }
 
         registrarError("Sentencia no reconocida.");
         avanzar();
-
     }
 
-    private void methodDeclaration() {
-        // MethodDeclaration ::= "public" Type Identifier "(" ( Type Identifier ( "," Type Identifier )* )? ")"
-        // "{" ( VarDeclaration )* ( Statement )* "return" Expression ";" "}"
-
-        // ---------- 1. "public" ----------
+    private void methodDeclaration(String claseContenedora) {
         match("public");
 
-        // ---------- 2. Type ----------
+        String visibilidad = "public";
+        String tipoRetorno = "";
+        String nombreMetodo = "";
+        Token tokenMetodo;
+
+        // --- Tipo de retorno ---
         if (!esTipo()) {
             registrarError("Se esperaba un tipo de retorno después de 'public'.");
             return;
         }
+        tipoRetorno = tokens.get(indiceActual).getLexema();
         avanzar();
 
-        // ---------- 3. Identifier ----------
+        // --- Nombre del método ---
         if (!verificarTipo("Identificador")) {
-            registrarError("Se esperaba un identificador (nombre del método) después del tipo.");
+            registrarError("Se esperaba un identificador como nombre de método.");
             return;
         }
+
+        tokenMetodo = tokens.get(indiceActual);
+        nombreMetodo = tokenMetodo.getLexema();
         avanzar();
 
-        // ---------- 4. "(" parámetros opcionales ")" ----------
+        // Registrar método en la tabla de símbolos
+        tablaSimbolos.add(new Simbolo(
+            nombreMetodo, tipoRetorno, claseContenedora, "-", visibilidad,
+            "Línea " + tokenMetodo.getLinea() + ", Columna " + tokenMetodo.getColumna(), "Método"
+        ));
+
+        // --- Parámetros ---
         match("(");
+
         if (esTipo()) {
-            // Primer parámetro
+            String tipoParam = tokens.get(indiceActual).getLexema();
             avanzar();
+
             if (!verificarTipo("Identificador")) {
                 registrarError("Se esperaba un identificador de parámetro.");
             } else {
+                Token tParam = tokens.get(indiceActual);
+                tablaSimbolos.add(new Simbolo(
+                    tParam.getLexema(), tipoParam,
+                    claseContenedora + "." + nombreMetodo, "-", "local",
+                    "Línea " + tParam.getLinea() + ", Columna " + tParam.getColumna(), "Parámetro"
+                ));
                 avanzar();
             }
 
-            // Parámetros adicionales separados por comas
             while (verificarLexema(",")) {
                 match(",");
                 if (!esTipo()) {
-                    registrarError("Se esperaba un tipo de parámetro después de ','.");
+                    registrarError("Se esperaba un tipo de parámetro.");
                     break;
                 }
+                tipoParam = tokens.get(indiceActual).getLexema();
                 avanzar();
                 if (!verificarTipo("Identificador")) {
-                    registrarError("Se esperaba un identificador de parámetro.");
+                    registrarError("Se esperaba identificador de parámetro.");
                     break;
                 }
+                Token tParam = tokens.get(indiceActual);
+                tablaSimbolos.add(new Simbolo(
+                    tParam.getLexema(), tipoParam,
+                    claseContenedora + "." + nombreMetodo, "-", "local",
+                    "Línea " + tParam.getLinea() + ", Columna " + tParam.getColumna(), "Parámetro"
+                ));
                 avanzar();
             }
         }
+
         match(")");
 
-        // ---------- 5. "{" cuerpo del método ----------
-        match("{");
+        // --- Cuerpo del método ---
+        if (!match("{")) return;
 
-        // ( VarDeclaration )*
-        while (esTipo()) {
-            varDeclaration();
+        while (!verificarLexema("}") && indiceActual < tokens.size()) {
+
+            // Si parece declaración de variable local (tipo + identificador + ';')
+            if (esTipo() && siguienteEsIdentificador() && siguienteDespuesDeIdentificadorEsPuntoYComa()) {
+                varDeclaration(nombreMetodo, "local");
+            }
+
+            // Si es sentencia (asignación, llamada, return, etc.)
+            else if (esInicioDeSentencia()) {
+                statement();
+            }
+
+            // Cualquier otro token inesperado
+            else {
+                registrarError("Token inesperado dentro del cuerpo del método.");
+                avanzar();
+            }
         }
 
-        // ( Statement )*
-        while (esInicioDeSentencia()) {
-            statement();
-        }
-
-        // ---------- 6. "return" Expression ";" ----------
-        if (!match("return")) {
-            registrarError("Se esperaba la palabra clave 'return' antes de finalizar el método.");
-        } else {
-            expression();
-            match(";");
-        }
-
-        // ---------- 7. "}" ----------
-        match("}");
+        match("}"); // Fin del método
     }
-
-
+    
     private void classDeclaration() {
-        // ("public")? "class" Identifier ("extends" Identifier)? "{" (VarDeclaration)* (MethodDeclaration)* "}"
+        String visibilidad = "default";
+        String nombreClase = "";
+        String clasePadre = null;
+        Token tokenClase;
 
-        if (verificarLexema("public")) match("public");
-        match("class");
+        if (verificarLexema("public")) { visibilidad = "public"; match("public"); }
+        if (!match("class")) return;
 
         if (!verificarTipo("Identificador")) {
             registrarError("Se esperaba un identificador como nombre de clase.");
             return;
-        } else avanzar();
+        }
 
-        // Herencia 
+        tokenClase = tokens.get(indiceActual);
+        nombreClase = tokenClase.getLexema();
+        avanzar();
+
         if (verificarLexema("extends")) {
             match("extends");
-            if (!verificarTipo("Identificador")) {
-                registrarError("Se esperaba un identificador después de 'extends'.");
-            } else avanzar();
+            if (!verificarTipo("Identificador")) registrarError("Se esperaba identificador después de 'extends'.");
+            else { clasePadre = tokens.get(indiceActual).getLexema(); avanzar(); }
         }
 
-        match("{");
+        tablaSimbolos.add(new Simbolo(nombreClase, "class", clasePadre, "-", visibilidad,
+            "Línea " + tokenClase.getLinea() + ", Columna " + tokenClase.getColumna(), "Clase"));
 
-        // Cero o más declaraciones de variables
-        while (esTipo()) {
-            varDeclaration();
-        }
-
-        // Cero o más métodos
-        while (verificarLexema("public")) {
-            methodDeclaration();
+        if (!match("{")) return;
+        while (esTipo()) varDeclaration(nombreClase, visibilidad);
+        while (verificarLexema("public") && (siguienteEs("int") || siguienteEs("boolean") || siguienteEs("String") || siguienteEs("void") || siguienteEsTipoIdentificador())) {
+            methodDeclaration(nombreClase);
         }
 
         match("}");
     }
 
-    // Avanza al siguiente token 
-    private void avanzar() {
-        if (indiceActual < tokens.size()) {
-            indiceActual++;
-        }
+    // ------------------ MÉTODOS AUXILIARES ------------------
+
+    private boolean siguienteEsTipoIdentificador() {
+        int sig = indiceActual + 1;
+        return sig < tokens.size() && tokens.get(sig).getTipo().equals("Identificador");
     }
 
-    // Verifica si el token actual tiene el lexema especificado 
+    private void avanzar() { if (indiceActual < tokens.size()) indiceActual++; }
+
     private boolean verificarLexema(String esperado) {
-        return indiceActual < tokens.size() &&
-            tokens.get(indiceActual).getLexema().equals(esperado);
+        return indiceActual < tokens.size() && tokens.get(indiceActual).getLexema().equals(esperado);
     }
 
-    // Verifica si el token actual es de cierto tipo (ej. "Identificador")
     private boolean verificarTipo(String tipoEsperado) {
-        return indiceActual < tokens.size() &&
-            tokens.get(indiceActual).getTipo().equals(tipoEsperado);
+        return indiceActual < tokens.size() && tokens.get(indiceActual).getTipo().equals(tipoEsperado);
     }
 
     private boolean siguienteEs(String esperado) {
-        int siguiente = indiceActual + 1;
-        return siguiente < tokens.size() &&
-            tokens.get(siguiente).getLexema().equals(esperado);
+        int sig = indiceActual + 1;
+        return sig < tokens.size() && tokens.get(sig).getLexema().equals(esperado);
     }
 
-    // Verifica si el token actual coincide con el lexema esperado 
     private boolean match(String esperado) {
         if (indiceActual < tokens.size() && tokens.get(indiceActual).getLexema().equals(esperado)) {
             indiceActual++;
@@ -355,50 +365,67 @@ public class AnalizadorSintactico {
                 Token t = tokens.get(indiceActual);
                 errores.add(String.format(
                     "Error sintáctico en línea %d, columna %d: Se esperaba '%s' pero se encontró '%s'.",
-                    t.getLinea(), t.getColumna(), esperado, t.getLexema()
-                ));
-            } else {
-                errores.add("Error sintáctico: fin de archivo inesperado, se esperaba '" + esperado + "'.");
-            }
+                    t.getLinea(), t.getColumna(), esperado, t.getLexema()));
+            } else errores.add("Error sintáctico: fin de archivo inesperado, se esperaba '" + esperado + "'.");
             return false;
         }
     }
 
     private boolean esTipo() {
         if (indiceActual >= tokens.size()) return false;
-
         String lex = tokens.get(indiceActual).getLexema();
         String tipo = tokens.get(indiceActual).getTipo();
-
-        // Por ahora solo registro los tipos mas basicos
-        return lex.equals("int") 
-        || lex.equals("boolean") 
-        || lex.equals("String") 
-        || tipo.equals("Identificador");
+        return lex.equals("int") || lex.equals("boolean") || lex.equals("String") || lex.equals("void") || tipo.equals("Identificador");
     }
+
 
     private boolean esInicioDeSentencia() {
         if (indiceActual >= tokens.size()) return false;
         String lex = tokens.get(indiceActual).getLexema();
-
-        // Palabras clave que inician sentencias válidas
         return lex.equals("if") || lex.equals("while") || lex.equals("System")
-            || lex.equals("{") || lex.equals("return")
-            || verificarTipo("Identificador"); // asignaciones o llamadas
+            || lex.equals("{") || lex.equals("return") || verificarTipo("Identificador");
     }
 
+    /**
+     * Analiza expresiones generales incluyendo operadores relacionales y aritméticos,
+     * y construcciones 'new Clase(...)'.
+     */
     private void expression() {
-        if (verificarTipo("Identificador") 
-        || verificarTipo("Entero") 
-        || verificarTipo("Decimal")) {
+        simpleExpression();
+        while (indiceActual < tokens.size()) {
+            Token t = tokens.get(indiceActual);
+            if (t.getTipo().equals("Operador") && esOperadorValido(t.getLexema())) {
+                avanzar();
+                simpleExpression();
+            } else break;
+        }
+    }
+
+    private void simpleExpression() {
+        if (verificarTipo("Identificador") || verificarTipo("Entero") || verificarTipo("Decimal")) {
             avanzar();
-        } else if (verificarLexema("true") 
-        || verificarLexema("false") 
-        || verificarLexema("this")) {
+        } else if (verificarLexema("true") || verificarLexema("false") || verificarLexema("this")) {
             avanzar();
         } else if (verificarLexema("(")) {
+            match("("); expression(); match(")");
+        } else if (verificarLexema("new")) {
+            match("new");
+            if (!verificarTipo("Identificador")) {
+                registrarError("Se esperaba un identificador después de 'new'.");
+            } else {
+                // tipo de la clase
+                avanzar();
+            }
+            // paréntesis de constructor
             match("(");
-            expression();
+            // argumentos del constructor (opcionales)
+            if (!verificarLexema(")")) {
+                while (true) {
+                    expression();
+                    if (verificarLexema(",")) match(",");
+                    else break;
+                }
+            }
             match(")");
         } else {
             registrarError("Expresión no reconocida.");
@@ -406,24 +433,30 @@ public class AnalizadorSintactico {
         }
     }
 
+    private boolean esOperadorValido(String op) {
+        return op.matches("==|!=|>|<|>=|<=|\\+|-|\\*|/|%");
+    }
 
-    // Registra un error sintáctico (al final necesite esta funcion sjjs)
     private void registrarError(String mensaje) {
-        if (errores.size() >= LIMITE_ERRORES) return; // detener registro
-
+        if (errores.size() >= LIMITE_ERRORES) return;
         if (indiceActual < tokens.size()) {
             Token t = tokens.get(indiceActual);
             errores.add(String.format(
                 "Error sintáctico en línea %d, columna %d: %s (token: '%s')",
-                t.getLinea(), t.getColumna(), mensaje, t.getLexema()
-            ));
-        } else {
-            errores.add("Error sintáctico: " + mensaje + " (fin de archivo).");
-        }
+                t.getLinea(), t.getColumna(), mensaje, t.getLexema()));
+        } else errores.add("Error sintáctico: " + mensaje + " (fin de archivo).");
+    }
+    
+    private boolean siguienteEsIdentificador() {
+        int sig = indiceActual + 1;
+        return sig < tokens.size() && tokens.get(sig).getTipo().equals("Identificador");
     }
 
-    // Devuelve la lista de errores sintácticos encontrados 
-    public List<String> getErrores() {
-        return errores;
+    private boolean siguienteDespuesDeIdentificadorEsPuntoYComa() {
+        int sig = indiceActual + 2;
+        return sig < tokens.size() && tokens.get(sig).getLexema().equals(";");
     }
+
+    public List<String> getErrores() { return errores; }
+    public List<Simbolo> getTablaSimbolos() { return tablaSimbolos; }
 }
